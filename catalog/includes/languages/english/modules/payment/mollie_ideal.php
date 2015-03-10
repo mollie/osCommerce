@@ -1,0 +1,4 @@
+<?php
+
+define('MODULE_PAYMENT_MOLLIE_TEXT_TITLE_IDEAL', 'iDEAL');
+define('MODULE_PAYMENT_MOLLIE_TEXT_DESCRIPTION_IDEAL', 'Accept iDEAL payments via Mollie');

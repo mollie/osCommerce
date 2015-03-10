@@ -1,0 +1,8 @@
+![Mollie](https://www.mollie.nl/files/Mollie-Logo-Style-Small.png)
+
+
+# Changelog #
+
+## Version 1.0 ##
+
++ Initial release.
