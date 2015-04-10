@@ -1,5 +1,4 @@
 <?php
 
-$filename = basename(__FILE__);
-
-require_once dirname(__FILE__) . '/../../english/modules/payment/' . $filename;
+define('MODULE_PAYMENT_MOLLIE_TEXT_TITLE_BANKTRANSFER', 'Virement bancaire');
+define('MODULE_PAYMENT_MOLLIE_TEXT_DESCRIPTION_BANKTRANSFER', 'Accepter les transferts bancaires avec Mollie');

@@ -33,9 +33,9 @@
  * @link        https://www.mollie.nl
  */
 
-// Load osCommerce.
-chdir('../');
-require('includes/application_top.php');
+// Load osCommerce. The 'chdir' is needed due to relative imports in application_top.php.
+chdir("../");
+require "includes/application_top.php";
 
 // Load Mollie API and helper.
 require_once dirname(__FILE__) . "/mollie-api-php/src/Mollie/API/Autoloader.php";

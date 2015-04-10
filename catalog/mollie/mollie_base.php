@@ -46,7 +46,6 @@ abstract class Mollie_Base
 
 	public function __construct ()
 	{
-		$this->table       = "mollie";
 		$this->code        = $this->get_code();
 		$this->title       = $this->get_title();
 		$this->description = $this->get_description();
@@ -70,7 +69,7 @@ abstract class Mollie_Base
 	}
 
 	/**
-	 * Unique ID of the submodule.
+	 * Unique ID of the submodule. Should match the (extensionless) file name.
 	 *
 	 * @return string
 	 */
@@ -80,12 +79,49 @@ abstract class Mollie_Base
 	}
 
 	/**
-	 * Title of the submodule (as shown in the admin panel).
+	 * Load the language file if required language constants have not yet been defined.
+	 */
+	protected function load_language ()
+	{
+		global $language;
+
+		if (!is_string($language) || !preg_match("/^[a-z]+$/", $language))
+		{
+			return;
+		}
+
+		$path = "/modules/payment/" . $this->get_code() . ".php";
+
+		if (file_exists(DIR_FS_CATALOG_LANGUAGES . $language . $path))
+		{
+			require_once(DIR_FS_CATALOG_LANGUAGES . $language . $path);
+		}
+
+		require_once(DIR_FS_CATALOG_LANGUAGES . "english" . $path);
+	}
+
+	/**
+	 * Title of the submodule as shown in the admin panel's payment module list.
+	 *
 	 * @return string
 	 */
 	public function get_title ()
 	{
-		return "Mollie - " . constant("MODULE_PAYMENT_MOLLIE_TEXT_TITLE_" . $this->get_method_name());
+		return "Mollie - " . $this->get_module_title();
+	}
+
+	/**
+	 * Title of the submodule.
+	 * @return string
+	 */
+	public function get_module_title ()
+	{
+		if (!defined("MODULE_PAYMENT_MOLLIE_TEXT_TITLE_" . $this->get_method_name()))
+		{
+			$this->load_language();
+		}
+
+		return constant("MODULE_PAYMENT_MOLLIE_TEXT_TITLE_" . $this->get_method_name());
 	}
 
 	/**
@@ -95,6 +131,11 @@ abstract class Mollie_Base
 	 */
 	public function get_description ()
 	{
+		if (!defined("MODULE_PAYMENT_MOLLIE_TEXT_DESCRIPTION_" . $this->get_method_name()))
+		{
+			$this->load_language();
+		}
+
 		return constant("MODULE_PAYMENT_MOLLIE_TEXT_DESCRIPTION_" . $this->get_method_name());
 	}
 
@@ -107,7 +148,7 @@ abstract class Mollie_Base
 	{
 		return array(
 			"id"     => $this->get_code(),
-			"module" => constant("MODULE_PAYMENT_MOLLIE_TEXT_TITLE_" . $this->get_method_name()),
+			"module" => $this->get_module_title(),
 		);
 	}
 
@@ -149,13 +190,13 @@ abstract class Mollie_Base
 	}
 
 	/**
-	 * Gets the title and or settings for the payment method.
+	 * Gets the title and/or settings for the payment method.
 	 *
 	 * @return array
 	 */
 	public function confirmation ()
 	{
-		return array("title" => $this->get_title());
+		return array("title" => $this->get_module_title());
 	}
 
 	/**
@@ -179,40 +220,30 @@ abstract class Mollie_Base
 	}
 
 	/**
-	 * After order processing, we cleanout the cart and send the customer off to Mollie. Return FALSE if anything went wrong.
-	 *
-	 * @return bool
+	 * After order processing (in checkout_process.php), we cleanout the cart and send the customer off to Mollie. Throws an exception if anything went wrong.
 	 */
 	public function after_process ()
 	{
-		global $customer_id, $order, $cart;
+		global $customer_id;
 
-		$query_order = tep_db_query("SELECT `orders_id` AS `id` FROM `" . TABLE_ORDERS . "` WHERE (`customers_id` = '" . (int) $customer_id . "') ORDER BY `id` DESC LIMIT 1");
-		$order_count = tep_db_num_rows($query_order);
+		$query_order = tep_db_query("SELECT orders_id FROM " . TABLE_ORDERS . " WHERE customers_id = " . intval($customer_id) . " ORDER BY orders_id DESC LIMIT 1");
 		$order       = tep_db_fetch_array($query_order);
 
-		if ($order_count && $order)
+		if (!empty($order))
 		{
 			// Get method URL parameter from session (before we clean up the session!).
 			$method = $this->get_method();
-
-			// Cleanup cart and session.
-			$cart->reset(TRUE);
-
-			tep_session_unregister("sendto");
-			tep_session_unregister("billto");
-			tep_session_unregister("shipping");
-			tep_session_unregister("payment");
-			tep_session_unregister("comments");
 
 			// Allow module to do something.
 			$this->after_process_before_redirect();
 
 			// Redirect to checkout.
-			tep_redirect("mollie/mollie.php?action=pay&osc_order_id=" . $order['id'] . "&method=" . $method);
+			tep_redirect("mollie/mollie.php?mollie_action=pay&osc_order_id=" . $order['orders_id'] . "&method=" . $method);
 		}
 
-		return FALSE;
+		// Throw an exception. If we don't, our customer will get redirected to checkout_success.php by osCommerce!
+		throw new Exception("Could not find order. Unable to redirect to Mollie.");
+		tep_exit();
 	}
 
 	/**
@@ -237,17 +268,19 @@ abstract class Mollie_Base
 	 */
 	public function check ()
 	{
-		if (!isset($this->check))
+		$installed_modules = $this->get_installed_modules();
+
+		if (in_array($this->get_code() . ".php", $installed_modules))
 		{
-			$check_query = tep_db_query("SELECT `configuration_value` FROM `" . TABLE_CONFIGURATION . "` WHERE `configuration_key` = 'MODULE_PAYMENT_MOLLIE_SORT_ORDER_" . $this->get_method_name() . "'");
-			$this->check = tep_db_num_rows($check_query);
+			return 1;
 		}
 
-		return $this->check;
+		return 0;
 	}
 
 	/**
-	 * Runs when user installs a submodule.
+	 * Runs when user installs a submodule. Adds Mollie configuration presets. Creates the Mollie table if needed. Adds our module to the global config table to support osCommerce 2.2. This is done automatically in 2.3+,
+	 * but it doesn't hurt to do this now either way.
 	 */
 	public function install ()
 	{
@@ -265,18 +298,66 @@ abstract class Mollie_Base
 		$this->add_configuration("Sort order", "MODULE_PAYMENT_MOLLIE_SORT_ORDER_" . $this->get_method_name(), "1", "Display order of Mollie payment methods during checkout (lowest number first)");
 
 		// Create Mollie payments table.
-		tep_db_query("CREATE TABLE IF NOT EXISTS `" . $this->table . "` (
-			`payment_id` varchar(255) NOT NULL,
-			`status` varchar(30) NOT NULL,
-			`osc_order_id` int(11) NOT NULL
+		tep_db_query("CREATE TABLE IF NOT EXISTS " . Mollie_Helper::DB_PAYMENTS_TABLE . " (
+			payment_id varchar(255) NOT NULL,
+			status varchar(30) NOT NULL,
+			osc_order_id int(11) NOT NULL
 		)");
+
+		// Add our module to the list of installed modules if needed.
+		$installed_modules = $this->get_installed_modules();
+
+		if (!in_array($this->get_code() . ".php", $installed_modules))
+		{
+			$installed_modules[] = $this->get_code() . ".php";
+
+			$this->set_installed_modules($installed_modules);
+		}
 	}
 
 	/**
-	 * Runs when user uninstalls a submodule. Does not do anything at this point, making sure configurations are saved if the module is deactivated accidentally.
+	 * Runs when user uninstalls a submodule. Removes our module from the global config table to support osCommerce 2.2. This is done automatically in 2.3+, but it doesn't hurt to do this now either way. The method does
+	 * not remove Mollie's custom configurations at this point, making sure they are saved if the module is deactivated accidentally.
 	 */
 	public function remove ()
-	{}
+	{
+		$installed_modules = $this->get_installed_modules();
+
+		$updated_modules = array();
+
+		foreach ($installed_modules as $module)
+		{
+			if ($module !== $this->get_code() . ".php")
+			{
+				$updated_modules[] = $module;
+			}
+		}
+
+		$this->set_installed_modules($updated_modules);
+	}
+
+	/**
+	 * Get a list of the installed payment methods (as filenames).
+	 *
+	 * @return array
+	 */
+	protected function get_installed_modules ()
+	{
+		$check_query = tep_db_query("SELECT configuration_value FROM " . TABLE_CONFIGURATION . " WHERE configuration_key = 'MODULE_PAYMENT_INSTALLED'");
+		$check       = tep_db_fetch_array($check_query);
+
+		if (isset($check['configuration_value']))
+		{
+			return explode(";", $check['configuration_value']);
+		}
+
+		return array();
+	}
+
+	protected function set_installed_modules ($installed_modules)
+	{
+		tep_db_query("UPDATE " . TABLE_CONFIGURATION . " SET configuration_value = '" . implode(";", $installed_modules) . "' WHERE configuration_key = 'MODULE_PAYMENT_INSTALLED'");
+	}
 
 	/**
 	 * Get all configuration keys.

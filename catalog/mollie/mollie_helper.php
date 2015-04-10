@@ -35,6 +35,10 @@
 
 class Mollie_Helper
 {
+	const VERSION = "1.0";
+
+	const DB_PAYMENTS_TABLE = "mollie";
+
 	public $protocol;
 	public $host;
 	public $path;
@@ -43,7 +47,7 @@ class Mollie_Helper
 
 	protected static $db;
 
-	public $statuses = array(
+	protected static $STATUSES = array(
 		"open"       => MODULE_PAYMENT_MOLLIE_OPEN_ORDER_STATUS_ID,
 		"pending"    => MODULE_PAYMENT_MOLLIE_PENDING_ORDER_STATUS_ID,
 		"cancelled"	 => MODULE_PAYMENT_MOLLIE_CANCELLED_ORDER_STATUS_ID,
@@ -53,7 +57,7 @@ class Mollie_Helper
 		"refunded"   => MODULE_PAYMENT_MOLLIE_PAID_ORDER_STATUS_ID,
 	);
 
-	public $status_messages = array(
+	protected static $STATUS_MESSAGES = array(
 		"open"      => "Mollie: open",
 		"pending"   => "Mollie: pending",
 		"cancelled" => "Mollie: cancelled",
@@ -70,11 +74,13 @@ class Mollie_Helper
 		$this->host     = $_SERVER['HTTP_HOST'];
 		$this->path     = dirname(isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : $_SERVER['PHP_SELF']);
 
-		if (isset($_GET['action']))
+		if (isset($_GET['mollie_action']))
 		{
-			if (method_exists($this, $_GET['action']))
+			// Call the action, if an $action_action method exists. Prevents exposing private methods. Note we should NEVER use $_GET['action'], as there's an osCommerce setting that forces sessions for GET actions. Our
+			// API does not accept sessions for webhook calls.
+			if (method_exists($this, $_GET['mollie_action'] . "_action"))
 			{
-				call_user_func(array($this, $_GET['action']));
+				call_user_func(array($this, $_GET['mollie_action'] . "_action"));
 			}
 		}
 	}
@@ -97,6 +103,8 @@ class Mollie_Helper
 				{
 					self::$api->addVersionString(PROJECT_VERSION);
 				}
+
+				self::$api->addVersionString("MollieosCommerce/" . self::VERSION);
 			}
 			catch (Mollie_API_Exception $e)
 			{
@@ -111,7 +119,7 @@ class Mollie_Helper
 	/**
 	 * Process a payment. Redirect customer to Mollie.
 	 */
-	public function pay ()
+	public function pay_action ()
 	{
 		try
 		{
@@ -140,24 +148,36 @@ class Mollie_Helper
 	/**
 	 * Fired when customer finishes payment, either by cancelling or completing the payment.
 	 */
-	public function return_page ()
+	public function return_page_action ()
 	{
 		$status = $this->get_order_status($_GET['order_id']);
 
 		if ($status == "paid")
 		{
+			// Cleanup cart and session.
+			global $cart;
+			$cart->reset(TRUE);
+
+			tep_session_unregister("sendto");
+			tep_session_unregister("billto");
+			tep_session_unregister("shipping");
+			tep_session_unregister("payment");
+			tep_session_unregister("comments");
+
+			// Show success page.
 			header("Location: /checkout_success.php");
 		}
 		else 
 		{
-			header("Location: /account_history_info.php?order_id=" . $_GET['order_id']);
+			// Send back to cart.
+			header("Location: /shopping_cart.php");
 		}
 	}
 
 	/**
 	 * Fired when Mollie calls the webhook (i.e. when Mollie has a status update).
 	 */
-	public function webhook ()
+	public function webhook_action ()
 	{
 		try
 		{
@@ -174,7 +194,12 @@ class Mollie_Helper
 
 			$this->add_order_history($id, $payment->status);
 
-			tep_db_query("UPDATE orders SET orders_status = '" . $this->statuses[$payment->status] . "' WHERE orders_id = '" . $id . "'");
+			$new_status_id = static::get_status_id($payment->status);
+
+			if ($new_status_id)
+			{
+				tep_db_query("UPDATE orders SET orders_status = '" . $new_status_id . "' WHERE orders_id = " . intval($id));
+			}
 
 			$this->log($transaction_id, $payment->status, $id);
 		}
@@ -195,7 +220,7 @@ class Mollie_Helper
 	 */
 	public function get_return_url ($order_id)
 	{
-		return $this->protocol . "://" . $this->host . $this->path . "/mollie.php?action=return_page&order_id=" . $order_id;
+		return $this->protocol . "://" . $this->host . $this->path . "/mollie.php?mollie_action=return_page&order_id=" . $order_id;
 	}
 
 	/**
@@ -207,7 +232,40 @@ class Mollie_Helper
 	 */
 	public function get_webhook_url ($order_id)
 	{
-		return $this->protocol . "://" . $this->host . $this->path . "/mollie.php?action=webhook&order_id=" . $order_id;
+		return $this->protocol . "://" . $this->host . $this->path . "/mollie.php?mollie_action=webhook&order_id=" . $order_id;
+	}
+
+	/**
+	 * Map an API status to an osCommerce status. Uses static::$STATUSES, falls back to default osCommerce statuses.
+	 *
+	 * @param $status_name
+	 *
+	 * @return int|NULL
+	 */
+	protected static function get_status_id ($status_name)
+	{
+		if (isset(static::$STATUSES[$status_name]) && static::$STATUSES[$status_name])
+		{
+			return static::$STATUSES[$status_name];
+		}
+
+		if (in_array($status_name, array("open", "pending")))
+		{
+			$native_status_name = "Pending";
+		}
+		elseif (in_array($status_name, array("paid", "paidout", "refunded")))
+		{
+			$native_status_name = "Processing";
+		}
+		else
+		{
+			return NULL;
+		}
+
+		$status_query = tep_db_query("SELECT orders_status_id FROM " . TABLE_ORDERS_STATUS . " WHERE orders_status_name = '" . $native_status_name . "'");
+		$status       = tep_db_fetch_array($status_query);
+
+		return intval($status['orders_status_id']);
 	}
 
 	/**
@@ -220,7 +278,7 @@ class Mollie_Helper
 	{
 		tep_db_query("
 			INSERT INTO orders_status_history (orders_id, orders_status_id, comments,date_added)
-			VALUES ('" . $order_id . "', '" . $this->statuses[$status] . "', '" . $this->status_messages[$status] . "', now())
+			VALUES ('" . $order_id . "', '" . static::get_status_id($status) . "', '" . static::$STATUS_MESSAGES[$status] . "', now())
 		");
 	}
 
@@ -231,7 +289,7 @@ class Mollie_Helper
 	 */
 	public function get_order_status ($order_id)
 	{
-		$query = tep_db_query("SELECT status FROM mollie WHERE osc_order_id = '".tep_db_input($order_id)."' and status = 'paid'");
+		$query = tep_db_query("SELECT status FROM " . self::DB_PAYMENTS_TABLE . " WHERE osc_order_id = '" . tep_db_input($order_id) . "' AND status = 'paid'");
 		$row   = tep_db_fetch_array($query);
 
 		return $row ? "paid" : "failed";
@@ -246,7 +304,7 @@ class Mollie_Helper
 	 */
 	public function get_transaction_id_from_order_id ($order_id)
 	{
-		$query = tep_db_query("SELECT payment_id FROM mollie WHERE osc_order_id = '".tep_db_input($order_id)."'");
+		$query = tep_db_query("SELECT payment_id FROM " . self::DB_PAYMENTS_TABLE . " WHERE osc_order_id = '".tep_db_input($order_id)."'");
 		$row   = tep_db_fetch_array($query);
 
 		return $row ? $row['payment_id'] : 0;
@@ -261,7 +319,7 @@ class Mollie_Helper
 	 */
 	public function get_order_id_from_transaction_id ($transaction_id)
 	{
-		$query = tep_db_query("SELECT osc_order_id FROM mollie WHERE payment_id = '".tep_db_input($transaction_id)."'");
+		$query = tep_db_query("SELECT osc_order_id FROM " . self::DB_PAYMENTS_TABLE . " WHERE payment_id = '".tep_db_input($transaction_id)."'");
 		$row   = tep_db_fetch_array($query);
 
 		return $row ? $row['osc_order_id'] : 0;
@@ -328,16 +386,16 @@ class Mollie_Helper
 	public function log ($transaction_id, $status, $order_id)
 	{
 		// See if we should update an existing order or insert a new one.
-		$query = tep_db_query("SELECT status FROM mollie WHERE payment_id = '" . tep_db_input($transaction_id) . "' AND status = 'paid'");
+		$query = tep_db_query("SELECT status FROM " . self::DB_PAYMENTS_TABLE . " WHERE payment_id = '" . tep_db_input($transaction_id) . "' AND status = 'paid'");
 		$rows  = tep_db_fetch_array($query);
 
 		if ($rows > 0)
 		{
-			tep_db_query("UPDATE mollie SET status = '" . $status . "' WHERE payment_id = '" . $transaction_id . "' AND osc_order_id = '" . $order_id . "'");
+			tep_db_query("UPDATE " . self::DB_PAYMENTS_TABLE . " SET status = '" . $status . "' WHERE payment_id = '" . $transaction_id . "' AND osc_order_id = '" . $order_id . "'");
 		}
 		else
 		{
-			tep_db_query("INSERT INTO mollie (payment_id, status, osc_order_id) VALUES('" . $transaction_id . "', '" . $status . "', '" . $order_id . "')");
+			tep_db_query("INSERT INTO " . self::DB_PAYMENTS_TABLE . " (payment_id, status, osc_order_id) VALUES('" . $transaction_id . "', '" . $status . "', '" . $order_id . "')");
 		}
 	}
 }
