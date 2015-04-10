@@ -3,6 +3,11 @@
 
 # Changelog #
 
+## Version 1.1 ##
+
++ Support older versions of osCommerce, down to osCommerce 2.2.
++ Improve default order status mapping.
+
 ## Version 1.0 ##
 
 + Initial release.
