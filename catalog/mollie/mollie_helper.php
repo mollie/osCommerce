@@ -412,27 +412,27 @@ class Mollie_Helper
 	{
 		$new_status_id = static::get_status_id($payment_status);
 
-        $order_updated = false;
-        $check_status_query = tep_db_query("select customers_name, customers_email_address, orders_status, date_purchased from " . TABLE_ORDERS . " where orders_id = '" . (int)$order_id . "'");
-        $check_status = tep_db_fetch_array($check_status_query);
-        $customer_notified = '0';
+		$order_updated = false;
+		$check_status_query = tep_db_query("select customers_name, customers_email_address, orders_status, date_purchased from " . TABLE_ORDERS . " where orders_id = '" . (int)$order_id . "'");
+		$check_status = tep_db_fetch_array($check_status_query);
+		$customer_notified = '0';
 
-        if ( $new_status_id && $check_status['orders_status'] != $new_status_id ) 
-        {
-          	if ( $this->get_status_notify($payment_status) ) 
-          	{
-          		require_once dirname(__FILE__) . "/../admin/includes/languages/english/orders.php";
-          		require_once dirname(__FILE__) . "/../admin/includes/filenames.php";
-          		$internal_status = $this->get_internal_status_name_from_id($new_status_id);
-            	$email = STORE_NAME . "\n" . EMAIL_SEPARATOR . "\n" . EMAIL_TEXT_ORDER_NUMBER . ' ' . $order_id . "\n" . EMAIL_TEXT_INVOICE_URL . ' ' . tep_href_link(FILENAME_CATALOG_ACCOUNT_HISTORY_INFO, 'order_id=' . $order_id, 'SSL') . "\n" . EMAIL_TEXT_DATE_ORDERED . ' ' . tep_date_long($check_status['date_purchased']) . "\n\n" . sprintf(EMAIL_TEXT_STATUS_UPDATE, $internal_status);
+		if ( $new_status_id && $check_status['orders_status'] != $new_status_id ) 
+		{
+			if ( $this->get_status_notify($payment_status) ) 
+			{
+				require_once dirname(__FILE__) . "/../admin/includes/languages/english/orders.php";
+				require_once dirname(__FILE__) . "/../admin/includes/filenames.php";
+				$internal_status = $this->get_internal_status_name_from_id($new_status_id);
+				$email = STORE_NAME . "\n" . EMAIL_SEPARATOR . "\n" . EMAIL_TEXT_ORDER_NUMBER . ' ' . $order_id . "\n" . EMAIL_TEXT_INVOICE_URL . ' ' . tep_href_link(FILENAME_CATALOG_ACCOUNT_HISTORY_INFO, 'order_id=' . $order_id, 'SSL') . "\n" . EMAIL_TEXT_DATE_ORDERED . ' ' . tep_date_long($check_status['date_purchased']) . "\n\n" . sprintf(EMAIL_TEXT_STATUS_UPDATE, $internal_status);
 				tep_mail($check_status['customers_name'], $check_status['customers_email_address'], EMAIL_TEXT_SUBJECT, $email, STORE_OWNER, STORE_OWNER_EMAIL_ADDRESS);
 				$customer_notified = '1';
-          	}
+			}
 
-          	// Only update order status when order_status is different then the saved order_status
-          	tep_db_query("UPDATE orders SET orders_status = '" . $new_status_id . "', last_modified = now() WHERE orders_id = " . intval($order_id));
+			// Only update order status when order_status is different then the saved order_status
+			tep_db_query("UPDATE orders SET orders_status = '" . $new_status_id . "', last_modified = now() WHERE orders_id = " . intval($order_id));
 			$this->add_order_history($order_id, $payment_status, $customer_notified);
-        }
+		}
 	}
 
 	/**
@@ -461,7 +461,7 @@ class Mollie_Helper
 	protected static function get_internal_status_name_from_id ($id) 
 	{
 		$query = tep_db_query("SELECT orders_status_name FROM ". TABLE_ORDERS_STATUS . " WHERE orders_status_id = ". (int) $id);
-        $status = tep_db_fetch_array($query);
-        return $status['orders_status_name'];
+		$status = tep_db_fetch_array($query);
+		return $status['orders_status_name'];
 	}
 }
