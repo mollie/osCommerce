@@ -57,6 +57,16 @@ class Mollie_Helper
 		"refunded"   => MODULE_PAYMENT_MOLLIE_PAID_ORDER_STATUS_ID,
 	);
 
+	protected static $STATUS_NOTIFY = array(
+		"open"       => MODULE_PAYMENT_MOLLIE_OPEN_ORDER_STATUS_NOTIFY,
+		"pending"    => MODULE_PAYMENT_MOLLIE_PENDING_ORDER_STATUS_NOTIFY,
+		"cancelled"	 => MODULE_PAYMENT_MOLLIE_CANCELLED_ORDER_STATUS_NOTIFY,
+		"expired"    => MODULE_PAYMENT_MOLLIE_EXPIRED_ORDER_STATUS_NOTIFY,
+		"paid"		 => MODULE_PAYMENT_MOLLIE_PAID_ORDER_STATUS_NOTIFY,
+		"paidout"	 => MODULE_PAYMENT_MOLLIE_PAID_ORDER_STATUS_NOTIFY,
+		"refunded"   => MODULE_PAYMENT_MOLLIE_PAID_ORDER_STATUS_NOTIFY,
+	);
+
 	protected static $STATUS_MESSAGES = array(
 		"open"      => "Mollie: open",
 		"pending"   => "Mollie: pending",
@@ -192,15 +202,7 @@ class Mollie_Helper
 			$transaction_id = $this->get_transaction_id_from_order_id($id);
 			$payment  = self::get_api()->payments->get($transaction_id);
 
-			$this->add_order_history($id, $payment->status);
-
-			$new_status_id = static::get_status_id($payment->status);
-
-			if ($new_status_id)
-			{
-				tep_db_query("UPDATE orders SET orders_status = '" . $new_status_id . "' WHERE orders_id = " . intval($id));
-			}
-
+			$this->update_status($id, $payment->status);
 			$this->log($transaction_id, $payment->status, $id);
 		}
 		catch (Mollie_API_Exception $e)
@@ -273,12 +275,13 @@ class Mollie_Helper
 	 *
 	 * @param int $order_id osCommerce order ID
 	 * @param int $status   Mollie status
+	 * @param int $customer_notified If customer is notified by e-mail
 	 */
-	public function add_order_history ($order_id, $status)
+	public function add_order_history ($order_id, $status, $customer_notified = 0)
 	{
 		tep_db_query("
-			INSERT INTO orders_status_history (orders_id, orders_status_id, comments,date_added)
-			VALUES ('" . $order_id . "', '" . static::get_status_id($status) . "', '" . static::$STATUS_MESSAGES[$status] . "', now())
+			INSERT INTO orders_status_history (orders_id, orders_status_id, comments, date_added, customer_notified)
+			VALUES ('" . $order_id . "', '" . static::get_status_id($status) . "', '" . static::$STATUS_MESSAGES[$status] . "', now(), ".($customer_notified >= 1 ? 1 : 0).")
 		");
 	}
 
@@ -397,5 +400,68 @@ class Mollie_Helper
 		{
 			tep_db_query("INSERT INTO " . self::DB_PAYMENTS_TABLE . " (payment_id, status, osc_order_id) VALUES('" . $transaction_id . "', '" . $status . "', '" . $order_id . "')");
 		}
+	}
+
+	/**
+	 * Updates the order status and sends emails if enabled
+	 *
+	 * @param int $order_id 		 Internal order id
+	 * @param string $payment_status Mollie payment status
+	 */
+	public function update_status($order_id, $payment_status)
+	{
+		$new_status_id = static::get_status_id($payment_status);
+
+        $order_updated = false;
+        $check_status_query = tep_db_query("select customers_name, customers_email_address, orders_status, date_purchased from " . TABLE_ORDERS . " where orders_id = '" . (int)$order_id . "'");
+        $check_status = tep_db_fetch_array($check_status_query);
+        $customer_notified = '0';
+
+        if ( $new_status_id && $check_status['orders_status'] != $new_status_id ) 
+        {
+          	if ( $this->get_status_notify($payment_status) ) 
+          	{
+          		require_once dirname(__FILE__) . "/../admin/includes/languages/english/orders.php";
+          		require_once dirname(__FILE__) . "/../admin/includes/filenames.php";
+          		$internal_status = $this->get_internal_status_name_from_id($new_status_id);
+            	$email = STORE_NAME . "\n" . EMAIL_SEPARATOR . "\n" . EMAIL_TEXT_ORDER_NUMBER . ' ' . $order_id . "\n" . EMAIL_TEXT_INVOICE_URL . ' ' . tep_href_link(FILENAME_CATALOG_ACCOUNT_HISTORY_INFO, 'order_id=' . $order_id, 'SSL') . "\n" . EMAIL_TEXT_DATE_ORDERED . ' ' . tep_date_long($check_status['date_purchased']) . "\n\n" . sprintf(EMAIL_TEXT_STATUS_UPDATE, $internal_status);
+				tep_mail($check_status['customers_name'], $check_status['customers_email_address'], EMAIL_TEXT_SUBJECT, $email, STORE_OWNER, STORE_OWNER_EMAIL_ADDRESS);
+				$customer_notified = '1';
+          	}
+
+          	// Only update order status when order_status is different then the saved order_status
+          	tep_db_query("UPDATE orders SET orders_status = '" . $new_status_id . "', last_modified = now() WHERE orders_id = " . intval($order_id));
+			$this->add_order_history($order_id, $payment_status, $customer_notified);
+        }
+	}
+
+	/**
+	 * Retrieve notify setting attached to status
+	 *
+	 * @param $status_name
+	 * @return bool|true
+	 */
+	protected static function get_status_notify ($status_name)
+	{
+		if (isset(static::$STATUS_NOTIFY[$status_name]) && static::$STATUS_NOTIFY[$status_name])
+		{
+			return static::$STATUS_NOTIFY[$status_name] == "True";
+		}
+
+		// fallback, default: send notification.
+		return true;
+	}
+
+	/**
+	 * Get osCommerce internal status name from id
+	 *
+	 * @param int $id
+	 * @return string osCommerce status name
+	 */
+	protected static function get_internal_status_name_from_id ($id) 
+	{
+		$query = tep_db_query("SELECT orders_status_name FROM ". TABLE_ORDERS_STATUS . " WHERE orders_status_id = ". (int) $id);
+        $status = tep_db_fetch_array($query);
+        return $status['orders_status_name'];
 	}
 }
