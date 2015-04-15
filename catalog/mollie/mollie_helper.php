@@ -448,8 +448,8 @@ class Mollie_Helper
 			return static::$STATUS_NOTIFY[$status_name] == "True";
 		}
 
-		// fallback, default: send notification.
-		return true;
+		// fallback, default: send notification Only when status is 'Paid'
+		return $status_name == "paid";
 	}
 
 	/**
