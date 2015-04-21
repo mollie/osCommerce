@@ -294,6 +294,12 @@ abstract class Mollie_Base
 		$this->add_configuration("Order status: expired",   "MODULE_PAYMENT_MOLLIE_EXPIRED_ORDER_STATUS_ID",   "0", "The payment expires after 15 minutes, except for bank transfers", "tep_cfg_pull_down_order_statuses(", "tep_get_order_status_name");
 		$this->add_configuration("Order status: paid",      "MODULE_PAYMENT_MOLLIE_PAID_ORDER_STATUS_ID",      "0", "The payment has been completed",                                  "tep_cfg_pull_down_order_statuses(", "tep_get_order_status_name");
 
+		$this->add_configuration("Notify customer", "MODULE_PAYMENT_MOLLIE_OPEN_ORDER_STATUS_NOTIFY",      "False", "The customer will be notified by e-mail when the order is created",                     "tep_cfg_select_option(array(\\'True\\', \\'False\\'), ");
+		$this->add_configuration("Notify customer", "MODULE_PAYMENT_MOLLIE_PENDING_ORDER_STATUS_NOTIFY",   "False", "The customer will be notified by e-mail when the order reaches the status 'pending'",   "tep_cfg_select_option(array(\\'True\\', \\'False\\'), ");
+		$this->add_configuration("Notify customer", "MODULE_PAYMENT_MOLLIE_CANCELLED_ORDER_STATUS_NOTIFY", "False", "The customer will be notified by e-mail when the order reaches the status 'cancelled'", "tep_cfg_select_option(array(\\'True\\', \\'False\\'), ");
+		$this->add_configuration("Notify customer", "MODULE_PAYMENT_MOLLIE_EXPIRED_ORDER_STATUS_NOTIFY",   "False", "The customer will be notified by e-mail when the order reaches the status 'expired'",   "tep_cfg_select_option(array(\\'True\\', \\'False\\'), ");
+		$this->add_configuration("Notify customer", "MODULE_PAYMENT_MOLLIE_PAID_ORDER_STATUS_NOTIFY",      "False", "The customer will be notified by e-mail when the order is completed",                   "tep_cfg_select_option(array(\\'True\\', \\'False\\'), ");
+
 		// Install submodule specific options.
 		$this->add_configuration("Sort order", "MODULE_PAYMENT_MOLLIE_SORT_ORDER_" . $this->get_method_name(), "1", "Display order of Mollie payment methods during checkout (lowest number first)");
 
@@ -369,10 +375,20 @@ abstract class Mollie_Base
 			$this->keys = array(
 				"MODULE_PAYMENT_MOLLIE_API_KEY",
 				"MODULE_PAYMENT_MOLLIE_PENDING_ORDER_STATUS_ID",
+				"MODULE_PAYMENT_MOLLIE_PENDING_ORDER_STATUS_NOTIFY",
+
 				"MODULE_PAYMENT_MOLLIE_OPEN_ORDER_STATUS_ID",
+				"MODULE_PAYMENT_MOLLIE_OPEN_ORDER_STATUS_NOTIFY",
+
 				"MODULE_PAYMENT_MOLLIE_CANCELLED_ORDER_STATUS_ID",
+				"MODULE_PAYMENT_MOLLIE_CANCELLED_ORDER_STATUS_NOTIFY",
+
 				"MODULE_PAYMENT_MOLLIE_EXPIRED_ORDER_STATUS_ID",
+				"MODULE_PAYMENT_MOLLIE_EXPIRED_ORDER_STATUS_NOTIFY",
+
 				"MODULE_PAYMENT_MOLLIE_PAID_ORDER_STATUS_ID",
+				"MODULE_PAYMENT_MOLLIE_PAID_ORDER_STATUS_NOTIFY",
+
 				"MODULE_PAYMENT_MOLLIE_PAYMENT_DESCRIPTION",
 				"MODULE_PAYMENT_MOLLIE_SORT_ORDER_" . $this->get_method_name(),
 			);
