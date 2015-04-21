@@ -35,7 +35,7 @@
 
 class Mollie_Helper
 {
-	const VERSION = "1.1";
+	const VERSION = "1.2";
 
 	const DB_PAYMENTS_TABLE = "mollie";
 
