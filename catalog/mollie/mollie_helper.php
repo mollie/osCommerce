@@ -264,7 +264,7 @@ class Mollie_Helper
 			return NULL;
 		}
 
-		$status_query = tep_db_query("SELECT orders_status_id FROM " . TABLE_ORDERS_STATUS . " WHERE orders_status_name = '" . $native_status_name . "'");
+		$status_query = tep_db_query("SELECT orders_status_id FROM " . TABLE_ORDERS_STATUS . " WHERE orders_status_name = '" . tep_db_input($native_status_name) . "'");
 		$status       = tep_db_fetch_array($status_query);
 
 		return intval($status['orders_status_id']);
@@ -281,7 +281,7 @@ class Mollie_Helper
 	{
 		tep_db_query("
 			INSERT INTO orders_status_history (orders_id, orders_status_id, comments, date_added, customer_notified)
-			VALUES ('" . $order_id . "', '" . static::get_status_id($status) . "', '" . static::$STATUS_MESSAGES[$status] . "', now(), ".($customer_notified >= 1 ? 1 : 0).")
+			VALUES ('" . tep_db_input($order_id) . "', '" . static::get_status_id($status) . "', '" . static::$STATUS_MESSAGES[$status] . "', now(), ".($customer_notified >= 1 ? 1 : 0).")
 		");
 	}
 
@@ -394,11 +394,11 @@ class Mollie_Helper
 
 		if ($rows > 0)
 		{
-			tep_db_query("UPDATE " . self::DB_PAYMENTS_TABLE . " SET status = '" . $status . "' WHERE payment_id = '" . $transaction_id . "' AND osc_order_id = '" . $order_id . "'");
+			tep_db_query("UPDATE " . self::DB_PAYMENTS_TABLE . " SET status = '" . tep_db_input($status) . "' WHERE payment_id = '" . tep_db_input($transaction_id) . "' AND osc_order_id = '" . tep_db_input($order_id) . "'");
 		}
 		else
 		{
-			tep_db_query("INSERT INTO " . self::DB_PAYMENTS_TABLE . " (payment_id, status, osc_order_id) VALUES('" . $transaction_id . "', '" . $status . "', '" . $order_id . "')");
+			tep_db_query("INSERT INTO " . self::DB_PAYMENTS_TABLE . " (payment_id, status, osc_order_id) VALUES('" . tep_db_input($transaction_id) . "', '" . tep_db_input($status) . "', '" . tep_db_input($order_id) . "')");
 		}
 	}
 
@@ -413,7 +413,7 @@ class Mollie_Helper
 		$new_status_id = static::get_status_id($payment_status);
 
 		$order_updated = false;
-		$check_status_query = tep_db_query("select customers_name, customers_email_address, orders_status, date_purchased from " . TABLE_ORDERS . " where orders_id = '" . (int)$order_id . "'");
+		$check_status_query = tep_db_query("select customers_name, customers_email_address, orders_status, date_purchased from " . TABLE_ORDERS . " where orders_id = '" . intval($order_id) . "'");
 		$check_status = tep_db_fetch_array($check_status_query);
 		$customer_notified = '0';
 
@@ -460,7 +460,7 @@ class Mollie_Helper
 	 */
 	protected static function get_internal_status_name_from_id ($id) 
 	{
-		$query = tep_db_query("SELECT orders_status_name FROM ". TABLE_ORDERS_STATUS . " WHERE orders_status_id = ". (int) $id);
+		$query = tep_db_query("SELECT orders_status_name FROM ". TABLE_ORDERS_STATUS . " WHERE orders_status_id = ". intval($id));
 		$status = tep_db_fetch_array($query);
 		return $status['orders_status_name'];
 	}

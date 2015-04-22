@@ -294,11 +294,11 @@ abstract class Mollie_Base
 		$this->add_configuration("Order status: expired",   "MODULE_PAYMENT_MOLLIE_EXPIRED_ORDER_STATUS_ID",   "0", "The payment expires after 15 minutes, except for bank transfers", "tep_cfg_pull_down_order_statuses(", "tep_get_order_status_name");
 		$this->add_configuration("Order status: paid",      "MODULE_PAYMENT_MOLLIE_PAID_ORDER_STATUS_ID",      "0", "The payment has been completed",                                  "tep_cfg_pull_down_order_statuses(", "tep_get_order_status_name");
 
-		$this->add_configuration("Notify customer", "MODULE_PAYMENT_MOLLIE_OPEN_ORDER_STATUS_NOTIFY",      "False", "The customer will be notified by e-mail when the order is created",                     "tep_cfg_select_option(array(\\'True\\', \\'False\\'), ");
-		$this->add_configuration("Notify customer", "MODULE_PAYMENT_MOLLIE_PENDING_ORDER_STATUS_NOTIFY",   "False", "The customer will be notified by e-mail when the order reaches the status 'pending'",   "tep_cfg_select_option(array(\\'True\\', \\'False\\'), ");
-		$this->add_configuration("Notify customer", "MODULE_PAYMENT_MOLLIE_CANCELLED_ORDER_STATUS_NOTIFY", "False", "The customer will be notified by e-mail when the order reaches the status 'cancelled'", "tep_cfg_select_option(array(\\'True\\', \\'False\\'), ");
-		$this->add_configuration("Notify customer", "MODULE_PAYMENT_MOLLIE_EXPIRED_ORDER_STATUS_NOTIFY",   "False", "The customer will be notified by e-mail when the order reaches the status 'expired'",   "tep_cfg_select_option(array(\\'True\\', \\'False\\'), ");
-		$this->add_configuration("Notify customer", "MODULE_PAYMENT_MOLLIE_PAID_ORDER_STATUS_NOTIFY",      "False", "The customer will be notified by e-mail when the order is completed",                   "tep_cfg_select_option(array(\\'True\\', \\'False\\'), ");
+		$this->add_configuration("Notify customer", "MODULE_PAYMENT_MOLLIE_OPEN_ORDER_STATUS_NOTIFY",      "False", "The customer will be notified by e-mail when the order is created",                     "tep_cfg_select_option(array('True', 'False'), ");
+		$this->add_configuration("Notify customer", "MODULE_PAYMENT_MOLLIE_PENDING_ORDER_STATUS_NOTIFY",   "False", "The customer will be notified by e-mail when the order reaches the status 'pending'",   "tep_cfg_select_option(array('True', 'False'), ");
+		$this->add_configuration("Notify customer", "MODULE_PAYMENT_MOLLIE_CANCELLED_ORDER_STATUS_NOTIFY", "False", "The customer will be notified by e-mail when the order reaches the status 'cancelled'", "tep_cfg_select_option(array('True', 'False'), ");
+		$this->add_configuration("Notify customer", "MODULE_PAYMENT_MOLLIE_EXPIRED_ORDER_STATUS_NOTIFY",   "False", "The customer will be notified by e-mail when the order reaches the status 'expired'",   "tep_cfg_select_option(array('True', 'False'), ");
+		$this->add_configuration("Notify customer", "MODULE_PAYMENT_MOLLIE_PAID_ORDER_STATUS_NOTIFY",      "True",  "The customer will be notified by e-mail when the order is completed",                   "tep_cfg_select_option(array('True', 'False'), ");
 
 		// Install submodule specific options.
 		$this->add_configuration("Sort order", "MODULE_PAYMENT_MOLLIE_SORT_ORDER_" . $this->get_method_name(), "1", "Display order of Mollie payment methods during checkout (lowest number first)");
@@ -362,7 +362,7 @@ abstract class Mollie_Base
 
 	protected function set_installed_modules ($installed_modules)
 	{
-		tep_db_query("UPDATE " . TABLE_CONFIGURATION . " SET configuration_value = '" . implode(";", $installed_modules) . "' WHERE configuration_key = 'MODULE_PAYMENT_INSTALLED'");
+		tep_db_query("UPDATE " . TABLE_CONFIGURATION . " SET configuration_value = '" . tep_db_input(implode(";", $installed_modules)) . "' WHERE configuration_key = 'MODULE_PAYMENT_INSTALLED'");
 	}
 
 	/**
@@ -410,7 +410,7 @@ abstract class Mollie_Base
 	protected function add_configuration ($title, $key, $default_value, $description, $set_function = NULL, $use_function = NULL)
 	{
 		// Do nothing if the key is already defined.
-		$query = tep_db_query("SELECT COUNT(*) AS c FROM `" . TABLE_CONFIGURATION . "` WHERE `configuration_key` = '".$key."'");
+		$query = tep_db_query("SELECT COUNT(*) AS c FROM `" . TABLE_CONFIGURATION . "` WHERE `configuration_key` = '" . tep_db_input($key) . "'");
 		$array = tep_db_fetch_array($query);
 
 		if (!empty($array['c']))
@@ -422,6 +422,14 @@ abstract class Mollie_Base
 			(`configuration_title`, `configuration_key`, `configuration_value`, `configuration_description`, `configuration_group_id`, `sort_order`, `date_added`, `set_function`, `use_function`)
 			VALUES ('%s', '%s', '%s', '%s', '6', '100', now(), '%s', '%s')";
 
-		tep_db_query(sprintf($sql, $title, $key, $default_value, $description, $set_function, $use_function));
+		tep_db_query(sprintf(
+			tep_db_input($sql),
+			tep_db_input($title),
+			tep_db_input($key),
+			tep_db_input($default_value),
+			tep_db_input($description),
+			tep_db_input($set_function),
+			tep_db_input($use_function)
+		));
 	}
 }
