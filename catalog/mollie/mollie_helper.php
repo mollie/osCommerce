@@ -421,11 +421,18 @@ class Mollie_Helper
 		{
 			if ( $this->get_status_notify($payment_status) ) 
 			{
-				require_once dirname(__FILE__) . "/../admin/includes/languages/english/orders.php";
-				require_once dirname(__FILE__) . "/../admin/includes/filenames.php";
 				$internal_status = $this->get_internal_status_name_from_id($new_status_id);
-				$email = STORE_NAME . "\n" . EMAIL_SEPARATOR . "\n" . EMAIL_TEXT_ORDER_NUMBER . ' ' . $order_id . "\n" . EMAIL_TEXT_INVOICE_URL . ' ' . tep_href_link(FILENAME_CATALOG_ACCOUNT_HISTORY_INFO, 'order_id=' . $order_id, 'SSL') . "\n" . EMAIL_TEXT_DATE_ORDERED . ' ' . tep_date_long($check_status['date_purchased']) . "\n\n" . sprintf(EMAIL_TEXT_STATUS_UPDATE, $internal_status);
-				tep_mail($check_status['customers_name'], $check_status['customers_email_address'], EMAIL_TEXT_SUBJECT, $email, STORE_OWNER, STORE_OWNER_EMAIL_ADDRESS);
+
+				$email = STORE_NAME . "\n" .
+					"------------------------------------------------------\n" .
+					'Order Number: ' . $order_id . "\n" .
+					'Detailed Invoice: ' . tep_href_link("account_history_info.php", 'order_id=' . $order_id, 'SSL') . "\n" .
+					'Date Ordered: ' . tep_date_long($check_status['date_purchased']) . "\n\n" .
+					'Your order has been updated to the following status.' . "\n\n" .
+					'New status: ' . $internal_status . "\n\n" .
+					'Please reply to this email if you have any questions.' . "\n";
+
+				tep_mail($check_status['customers_name'], $check_status['customers_email_address'], "Order Update", $email, STORE_OWNER, STORE_OWNER_EMAIL_ADDRESS);
 				$customer_notified = '1';
 			}
 

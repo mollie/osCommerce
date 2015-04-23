@@ -418,12 +418,10 @@ abstract class Mollie_Base
 			return;
 		}
 
-		$sql = "INSERT INTO `" . TABLE_CONFIGURATION . "`
-			(`configuration_title`, `configuration_key`, `configuration_value`, `configuration_description`, `configuration_group_id`, `sort_order`, `date_added`, `set_function`, `use_function`)
-			VALUES ('%s', '%s', '%s', '%s', '6', '100', now(), '%s', '%s')";
-
 		tep_db_query(sprintf(
-			tep_db_input($sql),
+			"INSERT INTO `" . TABLE_CONFIGURATION . "`
+				(`configuration_title`, `configuration_key`, `configuration_value`, `configuration_description`, `configuration_group_id`, `sort_order`, `date_added`, `set_function`, `use_function`)
+				VALUES ('%s', '%s', '%s', '%s', '6', '100', now(), '%s', '%s')",
 			tep_db_input($title),
 			tep_db_input($key),
 			tep_db_input($default_value),
