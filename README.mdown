@@ -1,5 +1,10 @@
 ![Mollie](https://www.mollie.com/files/Mollie-Logo-Style-Small.png)
 
+# Let op #
+
+Deze module wordt niet meer onderhouden, ook kan er geen ondersteuning meer worden geboden indien de module niet juist werkt.
+
+Onze excuses voor het ongemak.
 
 # Installatie #
 
